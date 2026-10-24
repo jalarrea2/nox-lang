@@ -12,24 +12,23 @@ from the seed, per program: two programs with different seeds produce different
 alphabets, ciphers and tags, so the artifact cannot be "learned" by reading it.
 Everything is resolved at compile time; the final binary carries none of it.
 
-Integrity:
-  * A wrong seed yields a different permutation/keystream, so the magic header
-    fails to validate -> the artifact is rejected.
-  * A correct seed but a tampered artifact fails the HMAC check -> rejected.
-    This distinguishes a corrupted/edited artifact from a wrong key.
+Integrity: a wrong seed or a tampered payload fails the HMAC check before
+bytecode parsing. Authentication does not replace structural IR validation.
 """
 import hashlib
 import hmac
 import struct
 from random import Random
 
-from .isa import BY_BYTE, MEMSIZE_DEFAULT, NREGS_DEFAULT, NREGS_MAX, OPCODES
+from .isa import BY_BYTE, MEMSIZE_DEFAULT, NREGS_DEFAULT, OPCODES, validate_ir, validate_sizes
 
 MAGIC = b"NOX1"
-VERSION = 2            # bumped when HMAC integrity was added
+VERSION = 3           # u16 register count; the decoder also accepts v2
 TAG_LEN = 16          # truncated HMAC-SHA256 tag
 BRAILLE0 = 0x2800     # the Braille block has EXACTLY 256 code points
 BRAILLE_LAST = BRAILLE0 + 0xFF
+_HEADERS = {2: struct.Struct("<BBII"), 3: struct.Struct("<BHII")}
+_OPERANDS = {"R": struct.Struct("<B"), "I": struct.Struct("<q"), "T": struct.Struct("<I")}
 
 
 class NoxIntegrityError(ValueError):
@@ -40,43 +39,39 @@ class NoxIntegrityError(ValueError):
 # IR <-> bytecode
 # --------------------------------------------------------------------------
 def serialize(ir, nregs=NREGS_DEFAULT, memsize=MEMSIZE_DEFAULT) -> bytes:
-    if not 1 <= nregs <= NREGS_MAX:
-        raise ValueError(f"nregs must be in 1..{NREGS_MAX}, got {nregs}")
-    if not 1 <= memsize <= 0xFFFFFFFF:
-        raise ValueError(f"memsize out of range: {memsize}")
-
+    validate_ir(ir, nregs, memsize)
     body = bytearray()
     for ins in ir:
         name, operands = ins[0], ins[1:]
-        if name not in OPCODES:
-            raise ValueError(f"unknown opcode: {name}")
         opcode, sig = OPCODES[name]
-        if len(operands) != len(sig):
-            raise ValueError(f"{name}: operands {operands} != signature {sig}")
         body.append(opcode)
         for kind, val in zip(sig, operands):
-            if kind == "R":
-                if not 0 <= val < nregs:
-                    raise ValueError(f"{name}: register r{val} out of range (nregs={nregs})")
-                body.append(val)
-            elif kind == "I":
-                body += struct.pack("<q", val)
-            elif kind == "T":
-                body += struct.pack("<I", val)
-    header = MAGIC + struct.pack("<BBII", VERSION, nregs, memsize, len(ir))
+            body += _OPERANDS[kind].pack(val)
+    header = MAGIC + _HEADERS[VERSION].pack(VERSION, nregs, memsize, len(ir))
     return bytes(header + body)
 
 
 def deserialize(data: bytes):
     if data[:4] != MAGIC:
         raise NoxIntegrityError("invalid magic: corrupt artifact or wrong seed")
-    if len(data) < 14:
+    if len(data) < 5:
         raise NoxIntegrityError("truncated artifact header")
-    version, nregs, memsize, count = struct.unpack("<BBII", data[4:14])
-    if version != VERSION:
-        raise NoxIntegrityError(f"unsupported artifact version {version} (expected {VERSION})")
+    version = data[4]
+    if version not in _HEADERS:
+        raise NoxIntegrityError(f"unsupported artifact version {version}")
+    header = _HEADERS[version]
+    pos = len(MAGIC) + header.size
+    if len(data) < pos:
+        raise NoxIntegrityError("truncated artifact header")
+    _, nregs, memsize, count = header.unpack_from(data, len(MAGIC))
+    try:
+        validate_sizes(nregs, memsize)
+    except ValueError as e:
+        raise NoxIntegrityError(str(e)) from None
+    if count > len(data) - pos:
+        raise NoxIntegrityError("truncated artifact body")
 
-    pos, ir = 14, []
+    ir = []
     for _ in range(count):
         if pos >= len(data):
             raise NoxIntegrityError("truncated artifact body")
@@ -87,16 +82,18 @@ def deserialize(data: bytes):
         name, sig = BY_BYTE[opcode]
         operands = []
         for kind in sig:
-            if kind == "R":
-                operands.append(data[pos])
-                pos += 1
-            elif kind == "I":
-                operands.append(struct.unpack("<q", data[pos:pos + 8])[0])
-                pos += 8
-            elif kind == "T":
-                operands.append(struct.unpack("<I", data[pos:pos + 4])[0])
-                pos += 4
+            operand = _OPERANDS[kind]
+            if pos + operand.size > len(data):
+                raise NoxIntegrityError(f"truncated {name} operand")
+            operands.append(operand.unpack_from(data, pos)[0])
+            pos += operand.size
         ir.append((name, *operands))
+    if pos != len(data):
+        raise NoxIntegrityError("trailing bytes after artifact body")
+    try:
+        validate_ir(ir, nregs, memsize)
+    except ValueError as e:
+        raise NoxIntegrityError(str(e)) from None
     return ir, nregs, memsize
 
 
