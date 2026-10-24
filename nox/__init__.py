@@ -1,8 +1,15 @@
 """NOX — opaque metalanguage compiled to native code."""
-from .dsl import parse, NoxSyntaxError
-from .codec import (serialize, deserialize, encode, decode,
-                    ir_to_artifact, artifact_to_ir, NoxIntegrityError)
-from .backend_c import emit_c, compile_c
+from .backend_c import compile_c, emit_c
+from .codec import (
+    NoxIntegrityError,
+    artifact_to_ir,
+    decode,
+    deserialize,
+    encode,
+    ir_to_artifact,
+    serialize,
+)
+from .dsl import NoxSyntaxError, parse
 
 __all__ = ["parse", "NoxSyntaxError", "serialize", "deserialize",
            "encode", "decode", "ir_to_artifact", "artifact_to_ir",

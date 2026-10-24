@@ -15,9 +15,16 @@ import subprocess
 import sys
 import tempfile
 
-from . import (parse, ir_to_artifact, artifact_to_ir, emit_c, compile_c,
-               NoxSyntaxError, NoxIntegrityError)
-from .isa import NREGS_DEFAULT, MEMSIZE_DEFAULT
+from . import (
+    NoxIntegrityError,
+    NoxSyntaxError,
+    artifact_to_ir,
+    compile_c,
+    emit_c,
+    ir_to_artifact,
+    parse,
+)
+from .isa import MEMSIZE_DEFAULT, NREGS_DEFAULT
 
 
 def _read(path):

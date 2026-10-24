@@ -23,7 +23,7 @@ import hmac
 import struct
 from random import Random
 
-from .isa import OPCODES, BY_BYTE, NREGS_DEFAULT, NREGS_MAX, MEMSIZE_DEFAULT
+from .isa import BY_BYTE, MEMSIZE_DEFAULT, NREGS_DEFAULT, NREGS_MAX, OPCODES
 
 MAGIC = b"NOX1"
 VERSION = 2            # bumped when HMAC integrity was added
@@ -80,18 +80,22 @@ def deserialize(data: bytes):
     for _ in range(count):
         if pos >= len(data):
             raise NoxIntegrityError("truncated artifact body")
-        opcode = data[pos]; pos += 1
+        opcode = data[pos]
+        pos += 1
         if opcode not in BY_BYTE:
             raise NoxIntegrityError(f"unknown opcode byte 0x{opcode:02X}")
         name, sig = BY_BYTE[opcode]
         operands = []
         for kind in sig:
             if kind == "R":
-                operands.append(data[pos]); pos += 1
+                operands.append(data[pos])
+                pos += 1
             elif kind == "I":
-                operands.append(struct.unpack("<q", data[pos:pos + 8])[0]); pos += 8
+                operands.append(struct.unpack("<q", data[pos:pos + 8])[0])
+                pos += 8
             elif kind == "T":
-                operands.append(struct.unpack("<I", data[pos:pos + 4])[0]); pos += 4
+                operands.append(struct.unpack("<I", data[pos:pos + 4])[0])
+                pos += 4
         ir.append((name, *operands))
     return ir, nregs, memsize
 

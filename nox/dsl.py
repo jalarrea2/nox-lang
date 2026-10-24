@@ -45,7 +45,7 @@ def _imm(tok, lineno):
     try:
         return int(t, 0)  # supports 0x.., 0b.., decimal, negatives
     except ValueError:
-        raise NoxSyntaxError(f"line {lineno}: invalid immediate {tok!r}")
+        raise NoxSyntaxError(f"line {lineno}: invalid immediate {tok!r}") from None
 
 
 def parse(src: str):

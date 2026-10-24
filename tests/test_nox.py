@@ -13,9 +13,16 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nox import (parse, ir_to_artifact, artifact_to_ir, emit_c, compile_c,
-                 NoxSyntaxError, NoxIntegrityError)
-from nox.codec import BRAILLE0, BRAILLE_LAST, serialize, deserialize
+from nox import (
+    NoxIntegrityError,
+    NoxSyntaxError,
+    artifact_to_ir,
+    compile_c,
+    emit_c,
+    ir_to_artifact,
+    parse,
+)
+from nox.codec import BRAILLE0, BRAILLE_LAST, serialize
 
 HAVE_CC = bool(shutil.which("clang") or shutil.which("gcc") or shutil.which("cc"))
 
@@ -119,7 +126,17 @@ class TestNative(unittest.TestCase):
         self.assertEqual(out, "0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 \n")
 
     def test_cat_roundtrips_stdin(self):
-        cat = "r1 = -1\nloop:\nread r0\nr2 = r0 == r1\nif r2 != 0 goto end\nputc r0\ngoto loop\nend:\nhalt\n"
+        cat = (
+            "r1 = -1\n"
+            "loop:\n"
+            "read r0\n"
+            "r2 = r0 == r1\n"
+            "if r2 != 0 goto end\n"
+            "putc r0\n"
+            "goto loop\n"
+            "end:\n"
+            "halt\n"
+        )
         self.assertEqual(self._run(cat, b"hello world"), b"hello world")
 
 
