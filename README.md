@@ -1,65 +1,76 @@
-# NOX — metalenguaje opaco compilado a nativo
+# NOX — opaque metalanguage compiled to native code
 
-NOX es un lenguaje **incomprensible para un humano pero ejecutable**: el código
-fuente final (`.nxa`) es una cadena de glifos Braille sin estructura visible, y
-sólo con la **seed** correcta se puede decodificar y compilar. El binario
-resultante es **nativo y eficiente** (`clang -O3`), indistinguible de C escrito a
-mano — toda la ofuscación se resuelve en tiempo de compilación, cero overhead en
-runtime.
+NOX is a language that is **unreadable to a human yet executable**: the final
+source (`.nxa`) is a string of Braille glyphs with no visible structure, and
+only the correct **seed** can decode and compile it. The resulting binary is
+**native and efficient** (`clang -O3`), indistinguishable from hand-written C —
+all obfuscation is resolved at compile time, with zero runtime overhead.
 
-## Por qué es "meta"
+## Why it is "meta"
 
-No hay keywords fijas. El diccionario `byte → glifo` y el keystream de cifrado se
-**derivan de la seed por programa**: dos programas con seeds distintas producen
-alfabetos y cifrados distintos. No se puede aprender el lenguaje leyéndolo.
+There are no fixed keywords. The `byte → glyph` dictionary and the cipher
+keystream are **derived from the seed, per program**: two programs with
+different seeds produce different alphabets and ciphers. You cannot learn the
+language by reading it.
 
 ## Pipeline
 
 ```
- DSL legible (.nox)
+ readable DSL (.nox)
         │  python -m nox compile … --seed K
         ▼
- artefacto opaco (.nxa)   ← lo que se distribuye; ruido sin la seed
+ opaque artifact (.nxa)   ← what you distribute; noise without the seed
         │  python -m nox build/run … --seed K
         ▼
  decode(seed) → IR → C → clang -O3
         ▼
- binario nativo
+ native binary
 ```
 
-- **Capa 0 (portador):** bloque Braille U+2800–U+28FF (exactamente 256 glifos).
-- **Capa 1 (meta):** permutación byte↔glifo + XOR keystream, ambos `f(seed)`.
-- **Capa 2 (cómputo):** máquina de registros i64, memoria lineal, I/O. Turing-completa.
-- **Capa 3 (runtime):** emisión a C + `clang -O3` (fallback gcc/cc).
+- **Layer 0 (carrier):** Braille block U+2800–U+28FF (exactly 256 glyphs).
+- **Layer 1 (meta):** byte↔glyph permutation + XOR keystream, both `f(seed)`.
+- **Layer 2 (compute):** i64 register machine, linear memory, I/O. Turing-complete.
+- **Layer 3 (runtime):** emit C + `clang -O3` (falls back to gcc/cc).
+- **Integrity:** an HMAC-SHA256 tag detects a tampered artifact, distinct from a
+  simple wrong-seed rejection.
 
-## Uso
+## Usage
 
 ```bash
-python -m nox compile examples/fib.nox -o fib.nxa --seed CLAVE   # DSL → artefacto
-python -m nox build   fib.nxa          -o fib     --seed CLAVE   # artefacto → binario
-python -m nox run     fib.nxa                     --seed CLAVE   # compila a tmp y ejecuta
-python -m nox emit    fib.nxa                     --seed CLAVE   # ver el C generado
-python -m nox disasm  fib.nxa                     --seed CLAVE   # ver el IR (debug)
+python -m nox compile examples/fib.nox -o fib.nxa --seed KEY   # DSL      -> artifact
+python -m nox build   fib.nxa          -o fib     --seed KEY   # artifact -> binary
+python -m nox run     fib.nxa                     --seed KEY   # compile to tmp and run
+python -m nox emit    fib.nxa                     --seed KEY   # show the generated C
+python -m nox disasm  fib.nxa                     --seed KEY   # show the IR (debug)
 ```
 
-Seed incorrecta → el header mágico no valida → se rechaza el artefacto.
+The bundled examples are compiled with the seed `demo`:
+
+```bash
+python -m nox run examples/fib.nox --seed demo    # -> 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377
+echo hello | python -m nox run examples/cat.nxa --seed demo
+```
+
+`compile` also accepts `--regs N` and `--mem N` to size the register file and
+linear memory. A wrong seed fails the magic-header check; a tampered artifact
+fails the HMAC check.
 
 ## DSL
 
 ```
-etiqueta:                 # label
-rN = <int>                # IMM (acepta -5, 0x1F, 'A')
+label:                    # label
+rN = <int>                # IMM (accepts -5, 0x1F, 'A')
 rN = rM                   # MOV
 rN = rA + rB              # ADD  (+ - * / %)
 rN = rA < rB              # LT   (<  >  ==)
 rN = rA & rB              # AND  (& | ^ << >>)
 rN = [rA]                 # LD  mem[rA]
 [rA] = rB                 # ST
-goto etiqueta             # JMP
-if rN == 0 goto etiqueta  # JZ
-if rN != 0 goto etiqueta  # JNZ
-read rN                   # IN   (-1 en EOF)
-print rN                  # OUTN (entero)
+goto label                # JMP
+if rN == 0 goto label     # JZ
+if rN != 0 goto label     # JNZ
+read rN                   # IN   (-1 on EOF)
+print rN                  # OUTN (integer)
 putc rN                   # OUT  (byte)
 halt                      # HALT
 ```
@@ -67,28 +78,37 @@ halt                      # HALT
 ## ISA
 
 `IMM MOV ADD SUB MUL DIV MOD LT EQ GT AND OR XOR SHL SHR LD ST JMP JZ JNZ IN OUT OUTN HALT`
-(32 registros i64, memoria lineal de 65536 celdas i64; ambos configurables).
+(up to 256 i64 registers, linear memory of i64 cells; both configurable,
+defaults 32 registers / 65536 cells).
 
-## Estructura
+## Project layout
 
 ```
 nox/
-  isa.py        opcodes + firmas
-  dsl.py        parser DSL → IR
-  codec.py      IR ↔ bytecode ↔ artefacto (cifrado/portador por seed)
-  backend_c.py  IR → C → clang -O3
+  isa.py        opcodes + signatures
+  dsl.py        DSL parser -> IR
+  codec.py      IR <-> bytecode <-> artifact (seed-based cipher/carrier + HMAC)
+  backend_c.py  IR -> C -> clang -O3
   __main__.py   CLI
-examples/       fib.nox, cat.nox
+examples/       fib.nox, cat.nox (+ compiled .nxa, seed "demo")
+tests/          test_nox.py
 ```
+
+## Tests
+
+```bash
+python -m unittest discover -s tests    # or: python -m pytest -q
+```
+
+The native-output tests are skipped automatically when no C compiler is found.
 
 ## Roadmap
 
-- **Back-end LLVM IR / WASM** (`llc -O3`) — más control y target web.
-- Tipos `f64`, llamadas/stack frames, arrays nombrados en el DSL.
-- Firmar el artefacto (HMAC) para detectar manipulación, no sólo seed errónea.
-- Port del toolchain a Rust (binario único distribuible).
+- **LLVM IR / WASM back-end** (`llc -O3`) — more control and a web target.
+- `f64` types, calls/stack frames, named arrays in the DSL.
+- Port the toolchain to Rust (a single distributable binary).
 
-> Nota de seguridad: la ofuscación por seed es *disuasión*, no criptografía de
-> grado militar — el keystream es SHA-256-CTR y protege el diccionario, pero
-> quien tenga la seed reconstruye el IR completo (`disasm`). Para
-> confidencialidad real, trata la seed como secreto y combina con firma HMAC.
+> Security note: seed-based obfuscation is *deterrence*, not military-grade
+> cryptography — the keystream is SHA-256-CTR and protects the dictionary, and
+> the HMAC tag detects tampering, but anyone who holds the seed can reconstruct
+> the full IR (`disasm`). For real confidentiality, treat the seed as a secret.

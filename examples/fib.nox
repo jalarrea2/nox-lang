@@ -1,10 +1,10 @@
-# Imprime los primeros 15 números de Fibonacci separados por espacio.
-# Ejercita: IMM, binarias, comparación, salto condicional, MOV, I/O.
+# Prints the first 15 Fibonacci numbers separated by spaces.
+# Exercises: IMM, binary ops, comparison, conditional jump, MOV, I/O.
 
 r0 = 0          # a
 r1 = 1          # b
-r2 = 0          # contador
-r3 = 15         # límite
+r2 = 0          # counter
+r3 = 15         # limit
 
 loop:
 r4 = r2 < r3
@@ -12,7 +12,7 @@ if r4 == 0 goto end
 print r0
 r5 = 32         # ' '
 putc r5
-r6 = r0 + r1    # siguiente
+r6 = r0 + r1    # next
 r0 = r1
 r1 = r6
 r7 = 1

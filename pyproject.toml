@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nox-lang"
+version = "0.2.0"
+description = "Opaque metalanguage compiled to native code"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+
+[project.scripts]
+nox = "nox.__main__:main"
+
+[tool.setuptools]
+packages = ["nox"]
