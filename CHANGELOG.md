@@ -9,6 +9,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Native arithmetic reference tests at `-O0` and `-O3`, memory-boundary tests,
   CLI error regressions, and an optional UBSan test mode exercised in CI.
+- Finite state machine examples: `turnstile.nox` (2-state turnstile),
+  `parity.nox` (parity DFA), and `div3.nox` (divisibility-by-3 DFA), with tests.
 - `LICENSE` (MIT), `CHANGELOG.md`, `CONTRIBUTING.md`, `.editorconfig`.
 - GitHub Actions CI (`.github/workflows/ci.yml`): lint + tests on Python
   3.8/3.10/3.12 plus a native-pipeline smoke test.

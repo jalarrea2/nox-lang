@@ -25,6 +25,7 @@ from nox import (
 from nox.codec import BRAILLE0, BRAILLE_LAST, serialize
 
 HAVE_CC = bool(shutil.which("clang") or shutil.which("gcc") or shutil.which("cc"))
+EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 
 FIB = """
 r0 = 0
@@ -140,6 +141,28 @@ class TestNative(unittest.TestCase):
             "halt\n"
         )
         self.assertEqual(self._run(cat, b"hello world"), b"hello world")
+
+
+@unittest.skipUnless(HAVE_CC, "no C compiler available")
+class TestExamples(TestNative):
+    """Compile and run the bundled finite-state-machine examples."""
+
+    def _run_example(self, name, stdin=b""):
+        with open(os.path.join(EXAMPLES_DIR, name), encoding="utf-8") as f:
+            return self._run(f.read(), stdin)
+
+    def test_turnstile(self):
+        # coin, push, coin, push -> unlocked, locked, unlocked, locked
+        self.assertEqual(self._run_example("turnstile.nox", b"cpcp"), b"ULUL\n")
+
+    def test_parity(self):
+        self.assertEqual(self._run_example("parity.nox", b"1011"), b"1\n")  # three 1s -> odd
+        self.assertEqual(self._run_example("parity.nox", b"1010"), b"0\n")  # two 1s -> even
+
+    def test_div3(self):
+        cases = [(b"110", b"Y\n"), (b"101", b"N\n"), (b"1001", b"Y\n"), (b"", b"Y\n")]
+        for stdin, want in cases:
+            self.assertEqual(self._run_example("div3.nox", stdin), want)
 
 
 if __name__ == "__main__":
