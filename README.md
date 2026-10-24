@@ -53,6 +53,17 @@ echo hello | python -m nox run examples/cat.nxa --seed demo
 
 (To rebuild an artifact from source: `python -m nox compile examples/fib.nox -o examples/fib.nxa --seed demo`.)
 
+### Finite state machines
+
+A finite state machine maps naturally onto NOX: **each state is a label**, and a
+transition is `read` followed by a conditional `goto`. The bundled examples:
+
+| Example           | What it is                                                        | Try it |
+|-------------------|-------------------------------------------------------------------|--------|
+| `turnstile.nox`   | Classic 2-state turnstile: `'c'` = coin, `'p'` = push             | `printf cpcp \| python -m nox run examples/turnstile.nxa --seed demo` → `ULUL` |
+| `parity.nox`      | DFA for the parity of `'1'` characters (even/odd)                 | `printf 1011 \| python -m nox run examples/parity.nxa --seed demo` → `1` |
+| `div3.nox`        | DFA accepting binary numbers divisible by 3 (remainder mod 3)     | `printf 110 \| python -m nox run examples/div3.nxa --seed demo` → `Y` |
+
 `compile` also accepts `--regs N` and `--mem N` to size the register file and
 linear memory. A wrong seed fails the magic-header check; a tampered artifact
 fails the HMAC check.
@@ -92,7 +103,7 @@ nox/
   codec.py      IR <-> bytecode <-> artifact (seed-based cipher/carrier + HMAC)
   backend_c.py  IR -> C -> clang -O3
   __main__.py   CLI
-examples/       fib.nox, cat.nox (+ compiled .nxa, seed "demo")
+examples/       fib, cat, turnstile, parity, div3 (.nox + compiled .nxa, seed "demo")
 tests/          test_nox.py
 ```
 
