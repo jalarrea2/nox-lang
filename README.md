@@ -47,9 +47,11 @@ python -m nox disasm  fib.nxa                     --seed KEY   # show the IR (de
 The bundled examples are compiled with the seed `demo`:
 
 ```bash
-python -m nox run examples/fib.nox --seed demo    # -> 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377
+python -m nox run examples/fib.nxa --seed demo    # -> 0 1 1 2 3 5 8 13 21 34 55 89 144 233 377
 echo hello | python -m nox run examples/cat.nxa --seed demo
 ```
+
+(To rebuild an artifact from source: `python -m nox compile examples/fib.nox -o examples/fib.nxa --seed demo`.)
 
 `compile` also accepts `--regs N` and `--mem N` to size the register file and
 linear memory. A wrong seed fails the magic-header check; a tampered artifact
@@ -97,10 +99,16 @@ tests/          test_nox.py
 ## Tests
 
 ```bash
-python -m unittest discover -s tests    # or: python -m pytest -q
+make test            # or: python -m unittest discover -s tests
 ```
 
 The native-output tests are skipped automatically when no C compiler is found.
+
+## Documentation & contributing
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — pipeline, artifact format, and CI governance.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — dev setup and the pre-merge checks.
+- [`CHANGELOG.md`](CHANGELOG.md) — release history.
 
 ## Roadmap
 

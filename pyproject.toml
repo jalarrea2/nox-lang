@@ -9,9 +9,36 @@ description = "Opaque metalanguage compiled to native code"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
+authors = [{ name = "Leonardo Larrea" }]
+keywords = ["esolang", "compiler", "obfuscation", "metalanguage", "codegen"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Compilers",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://github.com/jalarrea2/nox-lang"
+Repository = "https://github.com/jalarrea2/nox-lang"
 
 [project.scripts]
 nox = "nox.__main__:main"
 
 [tool.setuptools]
 packages = ["nox"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
