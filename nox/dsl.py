@@ -1,28 +1,28 @@
 """
-Front-end NOX: DSL legible -> IR.
+NOX front-end: readable DSL -> IR.
 
-El DSL es lo ÚNICO que un humano escribe. Luego el encoder lo vuelve opaco.
+The DSL is the ONLY thing a human writes; the encoder then makes it opaque.
 
-Gramática (una instrucción por línea; '#' y ';' inician comentario):
+Grammar (one instruction per line; '#' and ';' start a comment):
 
-  etiqueta:                 # label (identificador + ':')
-  rN = <int>                # IMM        (acepta -5, 0x1F, 'A' char)
+  label:                    # label (identifier + ':')
+  rN = <int>                # IMM        (accepts -5, 0x1F, 'A' char)
   rN = rM                   # MOV
   rN = rA + rB              # ADD   (+ - * / %)
   rN = rA < rB              # LT    (<  >  ==)
   rN = rA & rB              # AND   (& | ^ << >>)
   rN = [rA]                 # LD    (mem[rA])
   [rA] = rB                 # ST
-  goto etiqueta             # JMP
-  if rN == 0 goto etiqueta  # JZ
-  if rN != 0 goto etiqueta  # JNZ
+  goto label                # JMP
+  if rN == 0 goto label     # JZ
+  if rN != 0 goto label     # JNZ
   read rN                   # IN
-  print rN                  # OUTN  (imprime entero)
-  putc rN                   # OUT   (imprime byte)
+  print rN                  # OUTN  (prints integer)
+  putc rN                   # OUT   (prints byte)
   halt                      # HALT
 
-IR = lista de tuplas (MNEMONICO, *operandos) con labels ya resueltas a
-índice absoluto de instrucción.
+IR = list of tuples (MNEMONIC, *operands) with labels already resolved to
+absolute instruction indices.
 """
 import re
 
@@ -31,17 +31,11 @@ BIN = {"+": "ADD", "-": "SUB", "*": "MUL", "/": "DIV", "%": "MOD",
        "&": "AND", "|": "OR", "^": "XOR", "<<": "SHL", ">>": "SHR"}
 
 _R = r"r(\d+)"
+_LABEL = r"[A-Za-z_]\w*"
 
 
 class NoxSyntaxError(SyntaxError):
     pass
-
-
-def _reg(tok, lineno):
-    m = re.fullmatch(_R, tok.strip())
-    if not m:
-        raise NoxSyntaxError(f"línea {lineno}: registro inválido {tok!r}")
-    return int(m.group(1))
 
 
 def _imm(tok, lineno):
@@ -49,27 +43,27 @@ def _imm(tok, lineno):
     if len(t) == 3 and t[0] == "'" and t[2] == "'":
         return ord(t[1])
     try:
-        return int(t, 0)  # soporta 0x.., 0b.., decimal, negativos
+        return int(t, 0)  # supports 0x.., 0b.., decimal, negatives
     except ValueError:
-        raise NoxSyntaxError(f"línea {lineno}: inmediato inválido {tok!r}")
+        raise NoxSyntaxError(f"line {lineno}: invalid immediate {tok!r}") from None
 
 
 def parse(src: str):
     raw = []
     for lineno, line in enumerate(src.splitlines(), 1):
-        line = re.split(r"[#;]", line, 1)[0].strip()
+        line = re.split(r"[#;]", line, maxsplit=1)[0].strip()
         if line:
             raw.append((lineno, line))
 
-    # Paso 1: ubicar labels -> índice de instrucción
+    # Pass 1: map labels -> instruction index
     labels, idx = {}, 0
-    insns = []  # (lineno, texto) sólo instrucciones reales
+    insns = []  # (lineno, text) for real instructions only
     for lineno, line in raw:
-        m = re.fullmatch(r"([A-Za-z_]\w*):", line)
+        m = re.fullmatch(rf"({_LABEL}):", line)
         if m:
             name = m.group(1)
             if name in labels:
-                raise NoxSyntaxError(f"línea {lineno}: label duplicada {name!r}")
+                raise NoxSyntaxError(f"line {lineno}: duplicate label {name!r}")
             labels[name] = idx
         else:
             insns.append((lineno, line))
@@ -77,57 +71,54 @@ def parse(src: str):
 
     def tgt(name, lineno):
         if name not in labels:
-            raise NoxSyntaxError(f"línea {lineno}: label desconocida {name!r}")
+            raise NoxSyntaxError(f"line {lineno}: unknown label {name!r}")
         return labels[name]
 
-    # Paso 2: emitir IR
-    ir = []
-    for lineno, line in insns:
-        ir.append(_emit(line, lineno, tgt))
-    return ir
+    # Pass 2: emit IR
+    return [_emit(line, lineno, tgt) for lineno, line in insns]
 
 
 def _emit(line, lineno, tgt):
-    # control de flujo / IO sin '='
-    m = re.fullmatch(r"goto\s+([A-Za-z_]\w*)", line)
+    # control flow / IO without '='
+    m = re.fullmatch(rf"goto\s+({_LABEL})", line)
     if m:
         return ("JMP", tgt(m.group(1), lineno))
 
-    m = re.fullmatch(r"if\s+" + _R + r"\s*(==|!=)\s*0\s+goto\s+([A-Za-z_]\w*)", line)
+    m = re.fullmatch(rf"if\s+{_R}\s*(==|!=)\s*0\s+goto\s+({_LABEL})", line)
     if m:
         op = "JZ" if m.group(2) == "==" else "JNZ"
         return (op, int(m.group(1)), tgt(m.group(3), lineno))
 
-    m = re.fullmatch(r"read\s+" + _R, line)
+    m = re.fullmatch(rf"read\s+{_R}", line)
     if m:
         return ("IN", int(m.group(1)))
-    m = re.fullmatch(r"print\s+" + _R, line)
+    m = re.fullmatch(rf"print\s+{_R}", line)
     if m:
         return ("OUTN", int(m.group(1)))
-    m = re.fullmatch(r"putc\s+" + _R, line)
+    m = re.fullmatch(rf"putc\s+{_R}", line)
     if m:
         return ("OUT", int(m.group(1)))
     if line == "halt":
         return ("HALT",)
 
     # store: [rA] = rB
-    m = re.fullmatch(r"\[\s*" + _R + r"\s*\]\s*=\s*" + _R, line)
+    m = re.fullmatch(rf"\[\s*{_R}\s*\]\s*=\s*{_R}", line)
     if m:
         return ("ST", int(m.group(1)), int(m.group(2)))
 
-    # todo lo demás es asignación: rN = rhs
-    m = re.fullmatch(r"" + _R + r"\s*=\s*(.+)", line)
+    # everything else is an assignment: rN = rhs
+    m = re.fullmatch(rf"{_R}\s*=\s*(.+)", line)
     if not m:
-        raise NoxSyntaxError(f"línea {lineno}: no se reconoce {line!r}")
+        raise NoxSyntaxError(f"line {lineno}: unrecognized statement {line!r}")
     rd, rhs = int(m.group(1)), m.group(2).strip()
 
     # load: rN = [rA]
-    m = re.fullmatch(r"\[\s*" + _R + r"\s*\]", rhs)
+    m = re.fullmatch(rf"\[\s*{_R}\s*\]", rhs)
     if m:
         return ("LD", rd, int(m.group(1)))
 
-    # binaria: rA op rB
-    m = re.fullmatch(_R + r"\s*(\+|-|\*|/|%|<<|>>|<|>|==|&|\||\^)\s*" + _R, rhs)
+    # binary: rA op rB
+    m = re.fullmatch(rf"{_R}\s*(\+|-|\*|/|%|<<|>>|<|>|==|&|\||\^)\s*{_R}", rhs)
     if m:
         return (BIN[m.group(2)], rd, int(m.group(1)), int(m.group(3)))
 

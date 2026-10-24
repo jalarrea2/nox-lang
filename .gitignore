@@ -1,2 +1,28 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Compiled NOX binaries (sources and .nxa artifacts are tracked)
+/fib
+/cat
+*.out
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

@@ -1,21 +1,19 @@
 """
-Back-end NOX: IR -> C -> binario nativo (clang -O3).
+NOX back-end: IR -> C -> native binary (clang -O3).
 
-Diseño para eficiencia:
-  * Máquina de REGISTROS (no de pila): r[] son locals i64 que el optimizador
-    de LLVM asigna a registros físicos. Sin boxing, sin despacho de opcodes
-    en runtime (la ofuscación ya se resolvió al compilar).
-  * Cada instrucción lleva una etiqueta C (I0:, I1:, ...); los saltos son
-    `goto`. clang -O3 elimina las etiquetas muertas y hace su propio CFG,
-    register allocation y, cuando aplica, vectorización.
-  * I/O mínima vía getchar/putchar/printf: sin runtime pesado.
+Design for efficiency:
+  * REGISTER machine (not a stack): r[] are i64 locals that the LLVM optimizer
+    assigns to physical registers. No boxing, no runtime opcode dispatch (the
+    obfuscation was already resolved at compile time).
+  * Each instruction gets a C label (I0:, I1:, ...); jumps are `goto`.
+    clang -O3 removes dead labels and builds its own CFG, does register
+    allocation and, where applicable, vectorization.
+  * Minimal I/O via getchar/putchar/printf: no heavy runtime.
 
-El resultado es prácticamente indistinguible de C escrito a mano.
+The result is practically indistinguishable from hand-written C.
 """
 import shutil
 import subprocess
-
-from .isa import OPCODES
 
 _BIN = {
     "ADD": "+", "SUB": "-", "MUL": "*",
@@ -35,18 +33,19 @@ def emit_c(ir, nregs, memsize) -> str:
     w("int main(void) {")
     w(f"    int64_t r[{nregs}] = {{0}};")
     w("    int c;")
+    w("    (void)c;")
     w("")
     for i, ins in enumerate(ir):
         w(f"I{i}:;")
-        w("    " + _stmt(ins, i))
-    # destino de fallthrough / saltos al final del programa
+        w("    " + _stmt(ins))
+    # fallthrough / end-of-program jump target
     w(f"I{len(ir)}:;")
     w("    return 0;")
     w("}")
     return "\n".join(L) + "\n"
 
 
-def _stmt(ins, i):
+def _stmt(ins):
     op = ins[0]
     if op == "IMM":
         return f"r[{ins[1]}] = {ins[2]}LL;"
@@ -78,7 +77,7 @@ def _stmt(ins, i):
         return f'printf("%lld", (long long)r[{ins[1]}]);'
     if op == "HALT":
         return "return 0;"
-    raise ValueError(f"opcode no soportado en back-end: {op}")
+    raise ValueError(f"opcode not supported by back-end: {op}")
 
 
 def compile_c(c_src: str, c_path: str, out_path: str, opt="-O3"):
@@ -86,7 +85,7 @@ def compile_c(c_src: str, c_path: str, out_path: str, opt="-O3"):
         f.write(c_src)
     cc = shutil.which("clang") or shutil.which("gcc") or shutil.which("cc")
     if not cc:
-        raise RuntimeError("no se encontró clang/gcc/cc en PATH")
+        raise RuntimeError("no clang/gcc/cc found on PATH")
     cmd = [cc, opt, "-std=c11", "-w", c_path, "-o", out_path]
     subprocess.run(cmd, check=True)
     return cc, cmd

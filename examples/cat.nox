@@ -1,11 +1,11 @@
-# cat: copia stdin a stdout byte a byte hasta EOF.
-# Ejercita: IN, EQ con -1, salto no-cero (JNZ), OUT.
+# cat: copy stdin to stdout byte by byte until EOF.
+# Exercises: IN, EQ against -1, non-zero jump (JNZ), OUT.
 
 r1 = -1
 
 loop:
 read r0
-r2 = r0 == r1       # ¿EOF?
+r2 = r0 == r1       # EOF?
 if r2 != 0 goto end
 putc r0
 goto loop

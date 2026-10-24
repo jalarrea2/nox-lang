@@ -1,0 +1,14 @@
+# Code owners are requested for review automatically and, when "Require review
+# from Code Owners" is enabled in branch protection, must approve before merge.
+#
+# Replace the owners below with your GitHub usernames or @org/team handles.
+# A team handle (e.g. @your-org/nox-maintainers) lets a group of subscribers
+# share review duties.
+
+# Default owner for everything in the repo:
+*                       @jalarrea2
+
+# Area-specific owners (examples — adjust as the community grows):
+/nox/codec.py           @jalarrea2
+/.github/                @jalarrea2
+/docs/                   @jalarrea2
