@@ -29,6 +29,12 @@ jobs:
       - name: Test
         run: python -m unittest discover -s tests -p 'test_*.py'
 
+      - name: Native regressions with UndefinedBehaviorSanitizer
+        if: matrix.python-version == '3.12'
+        env:
+          NOX_TEST_SANITIZERS: "1"
+        run: python -m unittest discover -s tests -p 'test_runtime.py'
+
       - name: Smoke-test the native pipeline
         run: |
           python -m nox build examples/fib.nxa -o /tmp/fib --seed demo

@@ -26,6 +26,8 @@ absolute instruction indices.
 """
 import re
 
+from .isa import I64_MAX, I64_MIN
+
 BIN = {"+": "ADD", "-": "SUB", "*": "MUL", "/": "DIV", "%": "MOD",
        "<": "LT", ">": "GT", "==": "EQ",
        "&": "AND", "|": "OR", "^": "XOR", "<<": "SHL", ">>": "SHR"}
@@ -43,15 +45,31 @@ def _imm(tok, lineno):
     if len(t) == 3 and t[0] == "'" and t[2] == "'":
         return ord(t[1])
     try:
-        return int(t, 0)  # supports 0x.., 0b.., decimal, negatives
+        value = int(t, 0)  # supports 0x.., 0b.., decimal, negatives
     except ValueError:
         raise NoxSyntaxError(f"line {lineno}: invalid immediate {tok!r}") from None
+    if not I64_MIN <= value <= I64_MAX:
+        raise NoxSyntaxError(f"line {lineno}: immediate {tok!r} out of i64 range")
+    return value
+
+
+def _strip_comment(line):
+    # A character literal consists of exactly three characters, including quotes.
+    pos = 0
+    while pos < len(line):
+        if line[pos] == "'" and pos + 2 < len(line) and line[pos + 2] == "'":
+            pos += 3
+            continue
+        if line[pos] in "#;":
+            return line[:pos]
+        pos += 1
+    return line
 
 
 def parse(src: str):
     raw = []
     for lineno, line in enumerate(src.splitlines(), 1):
-        line = re.split(r"[#;]", line, maxsplit=1)[0].strip()
+        line = _strip_comment(line).strip()
         if line:
             raw.append((lineno, line))
 

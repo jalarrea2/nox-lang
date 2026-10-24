@@ -31,8 +31,8 @@ language by reading it.
 - **Layer 1 (meta):** byte↔glyph permutation + XOR keystream, both `f(seed)`.
 - **Layer 2 (compute):** i64 register machine, linear memory, I/O. Turing-complete.
 - **Layer 3 (runtime):** emit C + `clang -O3` (falls back to gcc/cc).
-- **Integrity:** an HMAC-SHA256 tag detects a tampered artifact, distinct from a
-  simple wrong-seed rejection.
+- **Integrity:** an HMAC-SHA256 tag rejects tampered artifacts and incorrect seeds
+  before the bytecode is parsed.
 
 ## Usage
 
@@ -54,8 +54,9 @@ echo hello | python -m nox run examples/cat.nxa --seed demo
 (To rebuild an artifact from source: `python -m nox compile examples/fib.nox -o examples/fib.nxa --seed demo`.)
 
 `compile` also accepts `--regs N` and `--mem N` to size the register file and
-linear memory. A wrong seed fails the magic-header check; a tampered artifact
-fails the HMAC check.
+linear memory. Both a wrong seed and a tampered payload fail the HMAC check.
+New artifacts use format v3, which supports all 256 registers. Existing v2
+artifacts, including the bundled examples, remain readable.
 
 ## DSL
 
@@ -77,11 +78,27 @@ putc rN                   # OUT  (byte)
 halt                      # HALT
 ```
 
+`#` and `;` start comments outside character literals; `r0 = '#'` and
+`r0 = ';'` are valid assignments. Integer immediates must fit signed i64;
+out-of-range values report a syntax error with the source line number.
+
 ## ISA
 
 `IMM MOV ADD SUB MUL DIV MOD LT EQ GT AND OR XOR SHL SHR LD ST JMP JZ JNZ IN OUT OUTN HALT`
 (up to 256 i64 registers, linear memory of i64 cells; both configurable,
 defaults 32 registers / 65536 cells).
+
+Execution rules are independent of C compiler optimization:
+
+- `ADD`, `SUB`, `MUL`, and `SHL` wrap modulo 2^64, interpreted as signed i64.
+- `DIV` truncates toward zero; `MOD` has the dividend's sign. A zero divisor
+  returns `0`. `INT64_MIN / -1` wraps to `INT64_MIN`; its remainder is `0`.
+- Shift counts use their low six bits, including negative counts (`-1` means
+  63). `SHR` is an arithmetic right shift that preserves the sign.
+- Memory starts at zero. `LD` and `ST` require addresses in `0..memsize-1`;
+  invalid addresses print a diagnostic to stderr and exit with code `4`.
+- Registers start at zero. Jump targets may point just past the final
+  instruction to exit successfully; other out-of-range targets are rejected.
 
 ## Project layout
 
@@ -93,7 +110,7 @@ nox/
   backend_c.py  IR -> C -> clang -O3
   __main__.py   CLI
 examples/       fib.nox, cat.nox (+ compiled .nxa, seed "demo")
-tests/          test_nox.py
+tests/          test_nox.py, test_validation.py, test_runtime.py
 ```
 
 ## Tests
@@ -103,6 +120,11 @@ make test            # or: python -m unittest discover -s tests
 ```
 
 The native-output tests are skipped automatically when no C compiler is found.
+To also check the native regression cases with UndefinedBehaviorSanitizer:
+
+```bash
+NOX_TEST_SANITIZERS=1 python -m unittest discover -s tests -p 'test_runtime.py'
+```
 
 ## Documentation & contributing
 

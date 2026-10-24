@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Native arithmetic reference tests at `-O0` and `-O3`, memory-boundary tests,
+  CLI error regressions, and an optional UBSan test mode exercised in CI.
 - `LICENSE` (MIT), `CHANGELOG.md`, `CONTRIBUTING.md`, `.editorconfig`.
 - GitHub Actions CI (`.github/workflows/ci.yml`): lint + tests on Python
   3.8/3.10/3.12 plus a native-pipeline smoke test.
@@ -16,8 +18,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `ruff`/`pytest` configuration.
 
 ### Fixed
+- Define signed i64 wraparound, masked shift counts, arithmetic right shifts,
+  and division/modulo overflow without undefined C behavior.
+- Check load/store addresses before indexing memory; report invalid addresses
+  on stderr and exit with runtime error code `4`.
+- Validate IR at serialization and C emission, including instruction shape,
+  integer operands, register/immediate/jump bounds, and machine dimensions.
+- Reject truncated operands, invalid bytecode dimensions/operands, and trailing
+  bytes consistently with `NoxIntegrityError`.
+- Preserve `#` and `;` inside character literals when stripping comments, and
+  report out-of-range i64 immediates as source-line syntax errors.
+- Correct integrity documentation: wrong seeds and edited payloads both fail
+  HMAC authentication before bytecode parsing.
 - Documentation: `nox run` / `build` take a compiled `.nxa` artifact, not a
   `.nox` source (README and Makefile examples corrected).
+
+### Changed
+- Artifact format v3 stores the register count in two bytes, fixing the
+  advertised 256-register maximum. The encoder writes v3; the decoder retains
+  v2 support so existing artifacts do not need to be rebuilt.
 
 ## [0.2.0]
 

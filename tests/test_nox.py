@@ -119,7 +119,9 @@ class TestNative(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             binp = os.path.join(d, "p")
             compile_c(emit_c(ir, nregs, memsize), os.path.join(d, "p.c"), binp)
-            return subprocess.run([binp], input=stdin, capture_output=True).stdout
+            return subprocess.run(
+                [binp], input=stdin, capture_output=True, check=True, timeout=5,
+            ).stdout
 
     def test_fib_output(self):
         out = self._run(FIB).decode()
