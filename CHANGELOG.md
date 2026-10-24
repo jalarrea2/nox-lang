@@ -7,6 +7,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- Finite state machine examples: `turnstile.nox` (2-state turnstile),
+  `parity.nox` (parity DFA), and `div3.nox` (divisibility-by-3 DFA), with tests.
 - `LICENSE` (MIT), `CHANGELOG.md`, `CONTRIBUTING.md`, `.editorconfig`.
 - GitHub Actions CI (`.github/workflows/ci.yml`): lint + tests on Python
   3.8/3.10/3.12 plus a native-pipeline smoke test.

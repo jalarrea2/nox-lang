@@ -1,0 +1,51 @@
+# Turnstile — the classic finite state machine.
+#
+# Two states (labels): `locked` and `unlocked`.
+# Input events from stdin: 'c' = insert coin, 'p' = push.
+# For each event it prints the resulting state: 'L' (locked) or 'U' (unlocked).
+# Newlines are ignored; EOF ends the run.
+#
+#   locked  --coin--> unlocked      unlocked --push--> locked
+#   locked  --push--> locked        unlocked --coin--> unlocked
+
+r9 = 99         # 'c' (coin)
+r8 = 112        # 'p' (push)
+r7 = -1         # EOF
+r6 = 10         # '\n' (ignored)
+
+locked:
+read r0
+r1 = r0 == r7
+if r1 != 0 goto done
+r5 = r0 == r6
+if r5 != 0 goto locked
+r2 = r0 == r9       # coin unlocks
+if r2 != 0 goto unlock_evt
+r3 = 76             # 'L' — stays locked
+putc r3
+goto locked
+unlock_evt:
+r3 = 85             # 'U'
+putc r3
+goto unlocked
+
+unlocked:
+read r0
+r1 = r0 == r7
+if r1 != 0 goto done
+r5 = r0 == r6
+if r5 != 0 goto unlocked
+r2 = r0 == r8       # push locks
+if r2 != 0 goto lock_evt
+r3 = 85             # 'U' — stays unlocked
+putc r3
+goto unlocked
+lock_evt:
+r3 = 76             # 'L'
+putc r3
+goto locked
+
+done:
+r4 = 10             # '\n'
+putc r4
+halt

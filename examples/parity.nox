@@ -1,0 +1,40 @@
+# Parity DFA — two states tracking the parity of the count of '1' characters.
+#
+# States (labels): `even` and `odd`. Reads '0'/'1' from stdin until EOF.
+# Any character other than '1' keeps the current state (so '0' and newlines
+# are harmless). At EOF it prints '1' if an odd number of '1's was seen,
+# otherwise '0'.
+#
+#   even --'1'--> odd        odd --'1'--> even
+
+r7 = -1         # EOF
+r1 = 49         # '1'
+
+even:
+read r0
+r2 = r0 == r7
+if r2 != 0 goto end_even
+r3 = r0 == r1
+if r3 != 0 goto odd
+goto even
+
+odd:
+read r0
+r2 = r0 == r7
+if r2 != 0 goto end_odd
+r3 = r0 == r1
+if r3 != 0 goto even
+goto odd
+
+end_even:
+r4 = 48             # '0'
+putc r4
+goto fin
+end_odd:
+r4 = 49             # '1'
+putc r4
+
+fin:
+r5 = 10             # '\n'
+putc r5
+halt
