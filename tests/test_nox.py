@@ -5,7 +5,6 @@ Run with:  python -m pytest -q      (or: python -m unittest)
 The native-output tests are skipped automatically when no C compiler is found.
 """
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -22,9 +21,10 @@ from nox import (
     ir_to_artifact,
     parse,
 )
+from nox.backend_c import find_compiler
 from nox.codec import BRAILLE0, BRAILLE_LAST, serialize
 
-HAVE_CC = bool(shutil.which("clang") or shutil.which("gcc") or shutil.which("cc"))
+HAVE_CC = bool(find_compiler())
 EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "examples")
 
 FIB = """

@@ -6,7 +6,50 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-24
+
 ### Added
+- Native MCP stdio tool servers via `mcp.tool` and `mcp.serve_stdio`, including
+  lifecycle negotiation, tool discovery/calls, strict JSON-RPC errors, bounded
+  frames/results, and isolated tool execution with timeouts on Linux/macOS.
+- Native JSON encoding, object/array queries, string/i64 conversion, and strict
+  validation using pinned vendored yyjson with its MIT license.
+- Format v5 for JSON/MCP instructions; legacy-only and function/string programs
+  retain v3/v4 encoding and existing artifacts remain readable.
+- Official MCP SDK interoperability check, native server example, packaging
+  coverage for vendored C assets, and protocol/JSON regression tests.
+
+## [0.4.0] - 2026-10-24
+
+### Added
+- Native functions with parameters, independent local registers, return values,
+  forward calls, and recursion; named local variables and expression arguments.
+- Immutable UTF-8 strings, string concatenation, byte length with `len`, integer
+  formatting with `str`, and native `html.escape`.
+- Artifact format v4 with function metadata, register-list operands, and
+  length-prefixed UTF-8 literals. Pure legacy programs still emit identical v3
+  bytecode; v2/v3 decoding remains supported.
+- Native tagged-value backend with type diagnostics, a 64 MiB string arena,
+  a 256-call depth limit, and process-exit cleanup. Python is needed for building,
+  not for executing the generated binary.
+- Native HTML and recursive function examples, language documentation, and
+  codec/parser/native/CLI integration regressions.
+
+## [0.3.0] - 2026-10-24
+
+### Added
+- Strict artifact carrier validation with line/column/codepoint diagnostics;
+  only Braille and ASCII space/tab/CR/LF are accepted. Invalid text that older
+  decoders silently ignored must now be removed.
+- Source filenames, original line numbers, and source context in syntax and
+  register-bound errors; `compile --regs` checks all register operands.
+- `nox --version` and explicit compiler selection through `CC`.
+- Deterministic malformed-bytecode and carrier mutation regression corpora.
+- Wheel/sdist build validation in fresh virtual environments outside the source
+  checkout, including native execution and legacy artifacts.
+- Linux Clang/GCC and macOS Clang CI coverage, including Python 3.8 and 3.14;
+  tag/manual packaging workflow producing downloadable verified artifacts.
+- Security model, installation instructions, and release preparation guide.
 - Native arithmetic reference tests at `-O0` and `-O3`, memory-boundary tests,
   CLI error regressions, and an optional UBSan test mode exercised in CI.
 - Finite state machine examples: `turnstile.nox` (2-state turnstile),
@@ -36,6 +79,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `.nox` source (README and Makefile examples corrected).
 
 ### Changed
+- Package version is 0.3.0; emitted bytecode remains v3 and v2 remains readable.
+- Clarify seed-reuse leakage and native-binary analysis limits, and remove
+  unsupported performance equivalence claims.
 - Artifact format v3 stores the register count in two bytes, fixing the
   advertised 256-register maximum. The encoder writes v3; the decoder retains
   v2 support so existing artifacts do not need to be rebuilt.

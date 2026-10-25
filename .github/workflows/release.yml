@@ -1,0 +1,47 @@
+name: Package distributions
+
+# This workflow prepares downloadable artifacts. It does not publish a release
+# or upload packages to PyPI and requires no publishing credentials.
+on:
+  workflow_call:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.8", "3.14"]
+    env:
+      CC: clang
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install build tools
+        run: python -m pip install build twine wheel 'setuptools>=61'
+      - name: Build source distribution and wheel
+        run: python -m build
+      - name: Validate distribution metadata
+        run: python -m twine check --strict dist/*
+      - name: Test clean wheel and source installations
+        run: python scripts/check_package.py dist
+      - name: Check tag version
+        if: github.ref_type == 'tag'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python -c 'import os, nox; assert os.environ["RELEASE_TAG"] == "v" + nox.__version__'
+      - name: Upload verified distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: nox-lang-python-${{ matrix.python }}
+          path: dist/*
+          if-no-files-found: error

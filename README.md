@@ -1,17 +1,22 @@
 # NOX — opaque metalanguage compiled to native code
 
-NOX is a language that is **unreadable to a human yet executable**: the final
-source (`.nxa`) is a string of Braille glyphs with no visible structure, and
-only the correct **seed** can decode and compile it. The resulting binary is
-**native and efficient** (`clang -O3`), indistinguishable from hand-written C —
-all obfuscation is resolved at compile time, with zero runtime overhead.
+NOX is an experimental language with a readable register-based DSL and an
+**opaque distribution format**: a `.nxa` artifact is a string of Braille glyphs
+decoded with a **seed**. The toolchain lowers the decoded instructions to C and
+compiles them to a native executable with `clang -O3` (or GCC/cc).
+
+Artifact decoding happens at build time, so the executable has no decoder or
+opcode-dispatch loop. Native performance depends on the program and compiler;
+the project does not yet provide benchmarks against hand-written C. The
+executable can be analyzed without the seed. See the
+[security model](docs/SECURITY.md) for the limits of artifact obfuscation.
 
 ## Why it is "meta"
 
-There are no fixed keywords. The `byte → glyph` dictionary and the cipher
-keystream are **derived from the seed, per program**: two programs with
-different seeds produce different alphabets and ciphers. You cannot learn the
-language by reading it.
+The readable DSL has fixed syntax. Its opaque carrier has no visible keywords:
+the `byte → glyph` dictionary and the keystream are **derived from the seed**.
+Different seeds produce different mappings; reusing a seed reuses both the
+mapping and keystream and exposes patterns between artifacts.
 
 ## Pipeline
 
@@ -19,7 +24,7 @@ language by reading it.
  readable DSL (.nox)
         │  python -m nox compile … --seed K
         ▼
- opaque artifact (.nxa)   ← what you distribute; noise without the seed
+ opaque artifact (.nxa)   ← seed-based obfuscation for distribution
         │  python -m nox build/run … --seed K
         ▼
  decode(seed) → IR → C → clang -O3
@@ -35,6 +40,20 @@ language by reading it.
   before the bytecode is parsed.
 
 ## Usage
+
+Requires Python 3.8+ and a C compiler (`clang`, `gcc`, or `cc`) for native
+builds. Install from a checkout in a virtual environment:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install .
+nox --version
+```
+
+Set `CC=gcc` or `CC=/path/to/clang` to select a compiler explicitly. `CC` must
+name a single executable; pass optimization through `--opt=-O0` or
+`--opt=-O3`. Without `CC`, the toolchain tries clang, gcc, then cc.
 
 ```bash
 python -m nox compile examples/fib.nox -o fib.nxa --seed KEY   # DSL      -> artifact
@@ -66,10 +85,33 @@ transition is `read` followed by a conditional `goto`. The bundled examples:
 
 `compile` also accepts `--regs N` and `--mem N` to size the register file and
 linear memory. Both a wrong seed and a tampered payload fail the HMAC check.
-New artifacts use format v3, which supports all 256 registers. Existing v2
-artifacts, including the bundled examples, remain readable.
+Pure register programs use format v3, which supports all 256 registers. Programs
+with functions or strings use format v4. Existing v2 artifacts, including the
+original bundled examples, remain readable.
+JSON/MCP programs use v5; the decoder accepts all four versions.
+
+Artifacts accept only Braille glyphs and ASCII space, tab, CR, and LF. Other
+characters are rejected with a line, column, and Unicode codepoint diagnostic.
+Whitespace is ignored and is not covered by payload authentication.
 
 ## DSL
+
+NOX also supports native functions, named locals, and strings:
+
+```text
+fn heading(name):
+    return "<h1>Hello, " + html.escape(name) + "</h1>"
+
+print heading("María & <agents>") + "\n"
+```
+
+Functions compile to native calls with independent locals, parameters, and
+return values. Strings support UTF-8, concatenation with `+`, byte length with
+`len`, formatting with `str`, and HTML escaping. The executable runs without
+Python. See [`docs/LANGUAGE.md`](docs/LANGUAGE.md) for syntax, recursion, typing,
+and limits, or try `examples/html.nox` and `examples/functions.nox`.
+
+The original register syntax remains available:
 
 ```
 label:                    # label
@@ -92,6 +134,15 @@ halt                      # HALT
 `#` and `;` start comments outside character literals; `r0 = '#'` and
 `r0 = ';'` are valid assignments. Integer immediates must fit signed i64;
 out-of-range values report a syntax error with the source line number.
+Register errors also retain the source filename and original line, including
+when comments or labels precede the instruction. `compile --regs N` checks
+every register operand against that configured count and returns exit code 2
+for source errors. For example, using `r32` with the default 32 registers:
+
+```text
+[nox] syntax error: program.nox: line 4: register r32 out of range (expected r0..r31)
+    r32 = 1
+```
 
 ## ISA
 
@@ -111,6 +162,11 @@ Execution rules are independent of C compiler optimization:
 - Registers start at zero. Jump targets may point just past the final
   instruction to exit successfully; other out-of-range targets are rejected.
 
+Format v4 adds `FUNC ENDFUNC CALL RET STR SLEN TOSTR HESC`. Functions have their
+own registers; memory remains shared. Extended programs use native tagged
+integer/string values, with runtime type checks and bounded string allocation
+and call depth. See the language guide for the full contract.
+
 ## Project layout
 
 ```
@@ -119,9 +175,12 @@ nox/
   dsl.py        DSL parser -> IR
   codec.py      IR <-> bytecode <-> artifact (seed-based cipher/carrier + HMAC)
   backend_c.py  IR -> C -> clang -O3
+  frontend.py   functions, expressions, named locals, and strings -> IR
+  backend_values.py  native function/string C generation and runtime
   __main__.py   CLI
 examples/       fib, cat, turnstile, parity, div3 (.nox + compiled .nxa, seed "demo")
-tests/          test_nox.py, test_validation.py, test_runtime.py
+tests/          parser, codec, native runtime, diagnostics, and compiler regressions
+scripts/        installed-package validation
 ```
 
 ## Tests
@@ -135,21 +194,43 @@ To also check the native regression cases with UndefinedBehaviorSanitizer:
 
 ```bash
 NOX_TEST_SANITIZERS=1 python -m unittest discover -s tests -p 'test_runtime.py'
+NOX_TEST_SANITIZERS=1 python -m unittest discover -s tests -p 'test_native_values.py'
 ```
+
+## Native MCP and JSON
+
+```text
+fn saludar(nombre):
+    return "Hola, " + nombre
+
+mcp.tool("saludar", saludar, "Saluda por nombre")
+mcp.serve_stdio()
+```
+
+Build `examples/mcp.nox` into an executable and point your agent host at that
+binary. It serves MCP tools over stdio without a Python runtime. Parameter
+schemas derive from function parameters; values are strings or signed i64.
+Native JSON helpers include `json.stringify`, `json.get`, `json.at`,
+`json.string`, `json.int`, and `json.valid`. See [`docs/MCP.md`](docs/MCP.md)
+for protocol coverage, configuration, limits, and the official-client check.
 
 ## Documentation & contributing
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — pipeline, artifact format, and CI governance.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — dev setup and the pre-merge checks.
 - [`CHANGELOG.md`](CHANGELOG.md) — release history.
+- [`docs/SECURITY.md`](docs/SECURITY.md) — threat model and format limitations.
+- [`docs/RELEASING.md`](docs/RELEASING.md) — build and verify installable packages.
+- [`docs/LANGUAGE.md`](docs/LANGUAGE.md) — native functions and strings.
+- [`docs/MCP.md`](docs/MCP.md) — native MCP tool servers and JSON.
 
 ## Roadmap
 
-- **LLVM IR / WASM back-end** (`llc -O3`) — more control and a web target.
-- `f64` types, calls/stack frames, named arrays in the DSL.
-- Port the toolchain to Rust (a single distributable binary).
-
-> Security note: seed-based obfuscation is *deterrence*, not military-grade
-> cryptography — the keystream is SHA-256-CTR and protects the dictionary, and
-> the HMAC tag detects tampering, but anyone who holds the seed can reconstruct
-> the full IR (`disasm`). For real confidentiality, treat the seed as a secret.
+- A reference interpreter for whole-program differential tests, then tracing
+  and register/memory inspection with source maps.
+- Modules, named constants, native HTTP/MCP client support, and Streamable HTTP
+  transport for servers.
+- A separately versioned authenticated-encryption envelope with per-artifact
+  randomness and password derivation, if confidentiality becomes a project goal.
+- Reproducible performance and compilation-size benchmarks before choosing
+  LLVM/WASM backends or a Rust toolchain port.

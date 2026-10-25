@@ -9,7 +9,7 @@ import unittest
 from nox import NoxIntegrityError, NoxSyntaxError, artifact_to_ir, emit_c, ir_to_artifact, parse
 from nox.__main__ import main
 from nox.codec import MAGIC, VERSION, decode, deserialize, encode, serialize
-from nox.isa import I64_MAX, I64_MIN, OPCODES
+from nox.isa import EXTENDED_OPCODES, I64_MAX, I64_MIN, OPCODES
 
 
 def bytecode(body, nregs=32, memsize=8, count=1, version=VERSION):
@@ -57,8 +57,9 @@ class TestIRValidation(unittest.TestCase):
                         consumer([], nregs, memsize)
 
     def test_all_opcodes_round_trip(self):
-        values = {"R": 255, "I": I64_MIN, "T": len(OPCODES)}
-        ir = [(name, *(values[kind] for kind in sig)) for name, (_, sig) in OPCODES.items()]
+        legacy = {name: spec for name, spec in OPCODES.items() if name not in EXTENDED_OPCODES}
+        values = {"R": 255, "I": I64_MIN, "T": len(legacy)}
+        ir = [(name, *(values[kind] for kind in sig)) for name, (_, sig) in legacy.items()]
         self.assertEqual(deserialize(serialize(ir, 256, 1)), (ir, 256, 1))
 
     def test_empty_program_and_end_target_are_valid(self):

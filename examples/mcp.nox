@@ -1,0 +1,20 @@
+# Build this program into a native MCP server and launch the executable directly.
+# Tool parameters accept strings or signed 64-bit integers.
+
+fn saludar(nombre):
+    return "Hola, " + nombre
+
+fn sumar(a, b):
+    return a + b
+
+fn heading(nombre):
+    return "<h1>" + html.escape(nombre) + "</h1>"
+
+fn json_nombre(documento):
+    return json.string(json.get(documento, "nombre"))
+
+mcp.tool("saludar", saludar, "Saluda a una persona por nombre")
+mcp.tool("sumar", sumar, "Suma dos enteros o concatena dos strings")
+mcp.tool("heading", heading, "Genera un encabezado HTML con texto escapado")
+mcp.tool("json_nombre", json_nombre, "Extrae nombre de un documento JSON")
+mcp.serve_stdio()

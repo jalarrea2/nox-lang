@@ -1,0 +1,13 @@
+# Generate a UTF-8 HTML document using native NOX functions and strings.
+# html.escape is for HTML text and quoted attribute values, not JavaScript/URLs.
+
+fn heading(name):
+    safe = html.escape(name)
+    return "<h1>Hello, " + safe + "</h1>"
+
+fn page(title, name):
+    head = "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>"
+    head = head + html.escape(title) + "</title></head><body>"
+    return head + heading(name) + "</body></html>\n"
+
+print page("NOX native", "María & <agents>")

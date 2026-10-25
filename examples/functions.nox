@@ -1,0 +1,10 @@
+# Recursive calls use independent local variables and registers.
+
+fn factorial(n):
+    if n == 0 goto base
+    return n * factorial(n - 1)
+    base:
+    return 1
+
+answer = factorial(10)
+print "10! = " + str(answer) + "\n"

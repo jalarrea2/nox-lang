@@ -3,7 +3,6 @@
 Set NOX_TEST_SANITIZERS=1 to compile these cases with undefined-behavior checks.
 """
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -11,9 +10,10 @@ import unittest
 from random import Random
 
 from nox import artifact_to_ir, emit_c, ir_to_artifact, parse
+from nox.backend_c import find_compiler
 from nox.isa import I64_MAX, I64_MIN
 
-CC = shutil.which("clang") or shutil.which("gcc") or shutil.which("cc")
+CC = find_compiler()
 MASK = (1 << 64) - 1
 
 
