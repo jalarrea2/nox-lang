@@ -14,4 +14,4 @@ from .dsl import NoxSyntaxError, parse
 __all__ = ["parse", "NoxSyntaxError", "serialize", "deserialize",
            "encode", "decode", "ir_to_artifact", "artifact_to_ir",
            "NoxIntegrityError", "emit_c", "compile_c"]
-__version__ = "0.2.0"
+__version__ = "0.5.0"

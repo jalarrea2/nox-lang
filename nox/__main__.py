@@ -7,7 +7,7 @@ NOX CLI.
   python -m nox emit    prog.nxa               --seed KEY   # show the generated C
   python -m nox disasm  prog.nxa               --seed KEY   # disassemble to IR (debug)
 
-The artifact (.nxa) is unreadable on its own; the seed is the key that opens it.
+The artifact (.nxa) uses seed-based obfuscation; see docs/SECURITY.md for limits.
 """
 import argparse
 import os
@@ -18,6 +18,7 @@ import tempfile
 from . import (
     NoxIntegrityError,
     NoxSyntaxError,
+    __version__,
     artifact_to_ir,
     compile_c,
     emit_c,
@@ -33,7 +34,7 @@ def _read(path):
 
 
 def cmd_compile(a):
-    ir = parse(_read(a.src))
+    ir = parse(_read(a.src), nregs=a.regs, filename=a.src)
     art = ir_to_artifact(ir, a.seed, nregs=a.regs, memsize=a.mem)
     out = a.out or (os.path.splitext(a.src)[0] + ".nxa")
     with open(out, "w", encoding="utf-8") as f:
@@ -68,11 +69,14 @@ def cmd_disasm(a):
     ir, nregs, memsize = artifact_to_ir(_read(a.src), a.seed)
     print(f"; nregs={nregs} memsize={memsize} instructions={len(ir)}")
     for i, ins in enumerate(ir):
-        print(f"{i:4d}  {ins[0]:5s} {', '.join(map(str, ins[1:]))}")
+        operands = ", ".join(repr(value) if isinstance(value, str) else str(value)
+                             for value in ins[1:])
+        print(f"{i:4d}  {ins[0]:7s} {operands}")
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="nox", description="NOX opaque metalanguage")
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     def add(name, fn, need_out=False, compile_opts=False):
@@ -101,6 +105,11 @@ def main(argv=None):
         rc = a.fn(a)
     except NoxSyntaxError as e:
         print(f"[nox] syntax error: {e}", file=sys.stderr)
+        if e.text is not None:
+            context = e.text.strip()
+            if len(context) > 160:
+                context = context[:157] + "..."
+            print(f"    {context}", file=sys.stderr)
         return 2
     except NoxIntegrityError as e:
         print(f"[nox] integrity error: {e}", file=sys.stderr)

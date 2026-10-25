@@ -8,7 +8,9 @@ and the checks that run before a pull request can be merged.
 ```bash
 git clone https://github.com/jalarrea2/nox-lang
 cd nox-lang
-make dev          # pip install -e ".[dev]"   (pytest + ruff)
+python3 -m venv .venv
+. .venv/bin/activate
+make dev          # pip install -e ".[dev]" (tests, lint, and packaging tools)
 ```
 
 A C compiler (`clang`, `gcc`, or `cc`) is required for the native pipeline.
@@ -21,6 +23,8 @@ make test         # run the test suite
 make lint         # ruff check
 make fmt          # ruff check --fix
 make demo         # run the bundled example artifacts
+make dist         # build and check wheel + source distribution
+make check-dist   # verify clean installed packages and native output
 ```
 
 ## Pull request workflow
@@ -34,16 +38,19 @@ make demo         # run the bundled example artifacts
 
 ### Required checks before merge
 
-This repository uses branch protection on `main`. A PR can only be merged once:
+Maintainers should configure branch protection on `main` to require:
 
-- the **CI** workflow (lint + tests on Python 3.8/3.10/3.12 + native smoke
-  test) passes, and
-- at least one review from a code owner is approved.
+- the **CI** jobs (Linux Clang/GCC, macOS Clang, native UBSan, and installed
+  package checks) passing, and
+- at least one approved review from a code owner.
 
-These rules are configured in the repository settings (see
+These rules must be configured in the repository settings (see
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#community--ci-governance)); the CI
 workflow itself lives in [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
-and needs no setup to run on your PR.
+and needs no setup to run on your PR. The presence of a workflow or CODEOWNERS
+file does not enable these merge gates by itself. See
+[`docs/RELEASING.md`](docs/RELEASING.md) for release verification and the
+artifact-only packaging workflow.
 
 ## Coding conventions
 
@@ -60,4 +67,8 @@ Use [Conventional Commits](https://www.conventionalcommits.org/):
 
 The `.nxa` format is versioned (`VERSION` in `nox/codec.py`). Any change to
 serialization, the cipher, the carrier, or the integrity tag **must** bump that
-version and be noted in `CHANGELOG.md`, since old artifacts will stop decoding.
+version and be noted in `CHANGELOG.md`. Preserve explicit legacy decoding when
+possible; document any artifacts that will no longer be supported.
+Tightening accepted layout text without changing serialized bytes, the cipher,
+or glyph mapping does not change the bytecode version, but must document any
+previously accepted text that is now rejected.

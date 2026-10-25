@@ -2,20 +2,22 @@
 NOX back-end: IR -> C -> native binary (clang -O3).
 
 Design for efficiency:
-  * REGISTER machine (not a stack): r[] are i64 locals that the LLVM optimizer
-    assigns to physical registers. No boxing, no runtime opcode dispatch (the
-    obfuscation was already resolved at compile time).
+  * REGISTER machine: legacy programs use i64 locals. Extended programs use
+    tagged values, direct C function calls, and a bounded string arena. There
+    is no runtime opcode dispatch; obfuscation is resolved at compile time.
   * Each instruction gets a C label (I0:, I1:, ...); jumps are `goto`.
     clang -O3 removes dead labels and builds its own CFG, does register
     allocation and, where applicable, vectorization.
   * Minimal I/O via getchar/putchar/printf: no heavy runtime.
 
-The result is practically indistinguishable from hand-written C.
+The resulting code is optimized by the selected C compiler. Performance against
+hand-written C has not yet been benchmarked.
 """
+import os
 import shutil
 import subprocess
 
-from .isa import I64_MIN, validate_ir
+from .isa import EXTENDED_OPCODES, I64_MIN, validate_ir
 
 _BIN = {
     "ADD": "+", "SUB": "-", "MUL": "*",
@@ -64,6 +66,10 @@ static inline size_t nox_addr(int64_t address) {
 
 def emit_c(ir, nregs, memsize) -> str:
     validate_ir(ir, nregs, memsize)
+    if any(instruction[0] in EXTENDED_OPCODES for instruction in ir):
+        from .backend_values import emit_values_c
+
+        return emit_values_c(ir, nregs, memsize, _HELPERS)
     L = []
     w = L.append
     w("#include <stdint.h>")
@@ -122,10 +128,21 @@ def _stmt(ins):
     raise ValueError(f"opcode not supported by back-end: {op}")
 
 
+def find_compiler():
+    """Find a C compiler, respecting an explicit CC executable name or path."""
+    requested = os.environ.get("CC")
+    if requested:
+        cc = shutil.which(requested)
+        if not cc:
+            raise RuntimeError(f"C compiler specified by CC not found: {requested!r}")
+        return cc
+    return shutil.which("clang") or shutil.which("gcc") or shutil.which("cc")
+
+
 def compile_c(c_src: str, c_path: str, out_path: str, opt="-O3"):
     with open(c_path, "w") as f:
         f.write(c_src)
-    cc = shutil.which("clang") or shutil.which("gcc") or shutil.which("cc")
+    cc = find_compiler()
     if not cc:
         raise RuntimeError("no clang/gcc/cc found on PATH")
     cmd = [cc, opt, "-std=c11", "-w", c_path, "-o", out_path]
